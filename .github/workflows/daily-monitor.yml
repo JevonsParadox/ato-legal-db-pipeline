@@ -1,0 +1,36 @@
+name: ATO Legal DB — daily monitor
+
+on:
+  # Public copy: automatic triggers removed (they need the private project's secrets).
+  workflow_dispatch:
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    # Stage 1a walks the full ATO API (~20–40 min); allow headroom.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # No `playwright install` — Playwright is off the fetcher's critical
+        # path (commit cf0e12d / ADR note), so we skip the chromium browser
+        # download entirely. brotli (pinned in requirements.txt) is mandatory
+        # so httpx can decode the ATO's `br`-encoded responses.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run daily monitor (enumerate + visibility sweep)
+        # Enumerates the ATO API (new docids -> fetch_queue; refreshes
+        # last_seen_in_search), then sweeps ADR-0007 visibility (removed /
+        # restored, URL probes, change_events). Skips the blanket hash-recheck
+        # re-queue — draining a ~5k re-fetch daily needs its own batched
+        # workflow + fetcher and would blow this job's timeout.
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python monitor/04_monitor_daily.py --skip-hash-check

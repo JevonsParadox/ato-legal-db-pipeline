@@ -1,0 +1,17 @@
+# Pipeline dependencies — pinned exactly. Security-sensitive deps stay on exact
+# versions; bump deliberately, never blindly. The pins below are the floors
+# HANDOFF.md was tested against; re-pin to `pip freeze` output after the first
+# successful end-to-end run on the live Supabase project.
+
+httpx==0.27.0
+brotli==1.2.0  # Bumped 2026-05-23 from 1.1.0 to close GHSA-2qfp-q593-8484 (DoS via crafted brotli decompression input). Required for httpx to auto-decompress ATO's `Content-Encoding: br` responses — without it, resp.text returns the raw compressed bytes mangled as UTF-8 (silently corrupted every fetched doc when we hit this on 2026-05-21). After bumping, run `pip install --upgrade brotli` once the current Stage 3 parser finishes.
+beautifulsoup4==4.12.0
+# lxml removed 2026-05-21: BS4's lxml backend crashed under lxml 6.x with
+# a SAX-builder ValueError on real ATO HTML (known BS4 4.12 × lxml 6
+# incompatibility). Switching BS4 to html.parser (stdlib) eliminated the
+# only reason we depended on lxml, which also permanently closes
+# GHSA-vfmq-68hx-4jfw (the XXE CVE we previously bumped lxml to patch).
+supabase==2.5.0
+playwright==1.60.0  # bumped from 1.43.0 — gets a current-stable Chromium (~April 2025) matched to this Playwright. Stale Chromium isn't materially exploitable for our use (single trusted origin, headless, sandboxed) but bumping is the right hygiene. API surface we use (`async_playwright()`, `chromium.launch`, `new_context`, `page.goto`, `page.content()`) unchanged across 1.43 → 1.60.
+python-dateutil==2.9.0
+openai==1.55.0  # added 2026-05-28 for parsers/04_embed_paragraphs.py — text-embedding-3-small (1536d). We use only the sync Embeddings API; no streaming, no Realtime, so the surface we depend on is minimal.
